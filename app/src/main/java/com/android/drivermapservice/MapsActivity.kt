@@ -30,8 +30,7 @@ import com.google.android.gms.maps.SupportMapFragment
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.material.snackbar.Snackbar
 import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.database.DatabaseError
-import com.google.firebase.database.FirebaseDatabase
+import com.google.firebase.database.*
 import com.karumi.dexter.Dexter
 import com.karumi.dexter.MultiplePermissionsReport
 import com.karumi.dexter.PermissionToken
@@ -71,6 +70,24 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback,SharedPreferences.O
 
     }
 
+    //todo 1 map service current location and firebase
+    private lateinit var onlineRef: DatabaseReference
+    private var currentUserRef: DatabaseReference?=null
+    private lateinit var driverLocationRef: DatabaseReference
+    private lateinit var geoFire: GeoFire
+    private var onlineValueEventListener = object : ValueEventListener {
+        override fun onDataChange(snapshot: DataSnapshot) {
+            if (snapshot.exists() && currentUserRef != null) {
+                currentUserRef?.onDisconnect()?.removeValue()
+            }
+        }
+
+        override fun onCancelled(error: DatabaseError) {
+            Snackbar.make(mapFragment.requireView(), error.message, Snackbar.LENGTH_LONG).show()
+        }
+
+    }
+
     //todo 2 map service current location
     @Subscribe(sticky = true, threadMode = ThreadMode.MAIN)
     fun onBackgroundLocationRetrive(event: MapLocation) {
@@ -82,8 +99,68 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback,SharedPreferences.O
                 event.location.longitude
             )
             mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(newPos, 18f))
+
+            //todo 2 map service current location and firebase
+            val geoCoder = Geocoder(this, Locale.getDefault())
+            val addressList: List<Address>?
+            try {
+                addressList = geoCoder.getFromLocation(
+                    event.location.latitude,
+                    event.location.longitude,
+                    1
+                )
+                val cityName = addressList[0].locality
+                driverLocationRef =
+                    FirebaseDatabase.getInstance()
+                        .getReference(Common.DRIVER_LOCATION_REFERENCE)
+                        .child(cityName)
+                currentUserRef = driverLocationRef.child(
+                    FirebaseAuth.getInstance().currentUser!!.uid
+                )
+                geoFire = GeoFire(driverLocationRef)
+
+                //update location
+                geoFire.setLocation(
+                    FirebaseAuth.getInstance().currentUser!!.uid,
+                    GeoLocation(
+                        event.location.latitude,
+                        event.location.longitude
+                    )
+                ) { key: String, error: DatabaseError? ->
+                    if (error != null) {
+                        Snackbar.make(
+                            mapFragment.requireView(),
+                            error.message,
+                            Snackbar.LENGTH_LONG
+                        ).show()
+                    } else {
+                        Snackbar.make(
+                            mapFragment.requireView(),
+                            "You are online",
+                            Snackbar.LENGTH_SHORT
+                        ).show()
+                    }
+                }
+
+                registerOnlineSystem()
+
+                //modifikasi rule
+//                    "MotorLocations" : {
+//                            "$uid" : {
+//                            ".read" : "auth !=null",
+//                            ".write" : "$auth != null"
+//                        }
+//                    },
+
+            } catch (e: IOException) {
+                Snackbar.make(mapFragment.requireView(), e.message?:"", Snackbar.LENGTH_SHORT).show()
+            }
         }
 
+    }
+
+    private fun registerOnlineSystem() {
+        onlineRef.addValueEventListener(onlineValueEventListener)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -95,6 +172,13 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback,SharedPreferences.O
             .findFragmentById(R.id.map) as SupportMapFragment
         mapFragment.getMapAsync(this)
 
+        //todo 3 map service current location and firebase(next my map service)
+        init()
+
+    }
+
+    private fun init() {
+        onlineRef = FirebaseDatabase.getInstance().getReference().child(".info/connected")
     }
 
     //todo 3 map service current location

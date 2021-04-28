@@ -4,14 +4,22 @@ import android.app.*
 import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
+import android.location.Address
+import android.location.Geocoder
 import android.location.Location
 import android.os.*
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.android.drivermapservice.Model.MapLocation
 import com.android.drivermapservice.Utils.Common
+import com.firebase.geofire.GeoFire
+import com.firebase.geofire.GeoLocation
 import com.google.android.gms.location.*
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.database.*
 import org.greenrobot.eventbus.EventBus
+import java.io.IOException
+import java.util.*
 
 //todo 1 map service (next maps manifest)
 class MyMapService : Service() {
@@ -30,6 +38,24 @@ class MyMapService : Service() {
     inner class LocalBinder : Binder() {
         internal val service: MyMapService
             get() = this@MyMapService
+    }
+
+    //todo 4 map service current location and firebase()
+    private lateinit var onlineRef: DatabaseReference
+    private var currentUserRef: DatabaseReference?=null
+    private lateinit var driverLocationRef: DatabaseReference
+    private lateinit var geoFire: GeoFire
+    private var onlineValueEventListener = object : ValueEventListener {
+        override fun onDataChange(snapshot: DataSnapshot) {
+            if (snapshot.exists() && currentUserRef != null) {
+                currentUserRef?.onDisconnect()?.removeValue()
+            }
+        }
+
+        override fun onCancelled(error: DatabaseError) {
+            Log.e(MyMapService::class.java.simpleName,error.message)
+        }
+
     }
 
     private var onChangingConfiguration = false
@@ -65,6 +91,11 @@ class MyMapService : Service() {
     }
 
     override fun onCreate() {
+
+        //todo 5 map service current location and firebase()
+        onlineRef = FirebaseDatabase.getInstance().getReference().child(".info/connected")
+
+
         fusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(this)
         locationCallback = object : LocationCallback(){
             override fun onLocationResult(p0: LocationResult?) {
@@ -142,7 +173,60 @@ class MyMapService : Service() {
         if (serviceIsRunningInForeground(this)){
             mNotificationManager?.notify(NOTIFICATION_ID,notification)
             Log.e("map","lat : ${mLocation?.latitude}, long : ${mLocation?.longitude}")
+
+            //todo 6 map service current location and firebase(finish)
+            val geoCoder = Geocoder(this, Locale.getDefault())
+            val addressList: List<Address>?
+            try {
+                addressList = geoCoder.getFromLocation(
+                    mLocation?.latitude?:0.0,
+                    mLocation?.longitude?:0.0,
+                    1
+                )
+                val cityName = addressList[0].locality
+                driverLocationRef =
+                    FirebaseDatabase.getInstance()
+                        .getReference(Common.DRIVER_LOCATION_REFERENCE)
+                        .child(cityName)
+                currentUserRef = driverLocationRef.child(
+                    FirebaseAuth.getInstance().currentUser!!.uid
+                )
+                geoFire = GeoFire(driverLocationRef)
+
+                //update location
+                geoFire.setLocation(
+                    FirebaseAuth.getInstance().currentUser!!.uid,
+                    GeoLocation(
+                        mLocation?.latitude?:0.0,
+                        mLocation?.longitude?:0.0
+                    )
+                ) { key: String, error: DatabaseError? ->
+                    if (error != null) {
+                        Log.e(MyMapService::class.java.simpleName,error.message)
+                    } else {
+                        Log.v(MyMapService::class.java.simpleName,"Your are online")
+                    }
+                }
+
+                registerOnlineSystem()
+
+                //modifikasi rule
+//                    "MotorLocations" : {
+//                            "$uid" : {
+//                            ".read" : "auth !=null",
+//                            ".write" : "$auth != null"
+//                        }
+//                    },
+
+            } catch (e: IOException) {
+                Log.e(MyMapService::class.java.simpleName,e.message?:"")
+            }
+
         }
+    }
+
+    private fun registerOnlineSystem() {
+        onlineRef.addValueEventListener(onlineValueEventListener)
     }
 
     private fun serviceIsRunningInForeground(context: Context): Boolean {
