@@ -8,6 +8,10 @@
          location permissions for the "MyLocation" functionality.
     -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"></uses-permission>
 
     <application
         android:allowBackup="true"
@@ -29,9 +33,6 @@
             android:name="com.google.android.geo.API_KEY"
             android:value="@string/google_maps_key" />
 
-        <activity
-            android:name=".MapsActivity2"
-            android:label="@string/title_activity_maps2"></activity>
         <!-- todo 2 splashscreen (next splashcreen.xml) -->
         <activity
             android:name=".SplashScreenActivity"
@@ -43,6 +44,14 @@
             </intent-filter>
         </activity>
         <activity android:name=".MapsActivity"></activity>
+
+
+<!--        todo 2 map service (next maps maps activity)-->
+        <service
+            android:name=".Service.MyMapService"
+            android:foregroundServiceType="location"
+            android:enabled="true"
+            android:exported="true"></service>
     </application>
 
 </manifest>
