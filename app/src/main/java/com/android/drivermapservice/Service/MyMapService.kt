@@ -162,8 +162,9 @@ class MyMapService : Service() {
 
     private fun createLocationRequest() {
         locationRequest = LocationRequest()
-        locationRequest?.interval = UPDATE_INTERVAL_IN_MIL
-        locationRequest?.fastestInterval = UPDATE_INTERVAL_IN_MIL
+        locationRequest?.interval = 15000
+        locationRequest?.fastestInterval = 10000
+        locationRequest?.setSmallestDisplacement(50f)
         locationRequest?.priority = LocationRequest.PRIORITY_HIGH_ACCURACY
     }
 
