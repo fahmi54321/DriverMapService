@@ -15,12 +15,16 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.android.drivermapservice.Model.DriverInfoModel
 import com.android.drivermapservice.R
+import com.google.android.gms.maps.model.LatLng
 import java.text.DateFormat
 import java.util.*
 
 
 object Common {
 
+    val RIDER_KEY: String = "RiderKey"
+    val PICKUP_LOCATION: String = "PickupLocation"
+    val REQUEST_DRIVER_TITLE: String ="RequestDriver"
     val TOKEN_REFERENCE: String = "Token"
     val DRIVER_INFO_REFERENCE: String = "DriverInfo"
     val DRIVER_LOCATION_REFERENCE: String = "DriverLocations"
@@ -100,5 +104,52 @@ object Common {
         }else{
             Log.e("intent","ada")
         }
+    }
+
+    fun getBearing(begin: LatLng, end: LatLng): Float {
+        //You can copy this function by link at description
+        val lat = Math.abs(begin.latitude - end.latitude)
+        val lng = Math.abs(begin.longitude - end.longitude)
+        if (begin.latitude < end.latitude && begin.longitude < end.longitude)
+            return Math.toDegrees(Math.atan(lng / lat)).toFloat()
+        else if (begin.latitude >= end.latitude && begin.longitude < end.longitude)
+            return (90 - Math.toDegrees(Math.atan(lng / lat)) + 90).toFloat()
+        else if (begin.latitude >= end.latitude && begin.longitude >= end.longitude)
+            return (Math.toDegrees(Math.atan(lng / lat)) + 180).toFloat()
+        else if (begin.latitude < end.latitude && begin.longitude >= end.longitude)
+            return (90 - Math.toDegrees(Math.atan(lng / lat)) + 270).toFloat()
+        return (-1).toFloat()
+    }
+    fun decodePoly(encoded: String): ArrayList<LatLng?> {
+        val poly = ArrayList<LatLng?>()
+        var index = 0
+        val len = encoded.length
+        var lat = 0
+        var lng = 0
+        while (index < len) {
+            var b: Int
+            var shift = 0
+            var result = 0
+            do {
+                b = encoded[index++].toInt() - 63
+                result = result or (b and 0x1f shl shift)
+                shift += 5
+            } while (b >= 0x20)
+            val dlat = if (result and 1 != 0) (result shr 1).inv() else result shr 1
+            lat += dlat
+            shift = 0
+            result = 0
+            do {
+                b = encoded[index++].toInt() - 63
+                result = result or (b and 0x1f shl shift)
+                shift += 5
+            } while (b >= 0x20)
+            val dlng = if (result and 1 != 0) (result shr 1).inv() else result shr 1
+            lng += dlng
+            val p = LatLng(lat.toDouble() / 1E5,
+                lng.toDouble() / 1E5)
+            poly.add(p)
+        }
+        return poly
     }
 }
